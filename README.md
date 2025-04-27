@@ -1,4 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cek Ongkir - Shipping Cost Calculator
+
+This application allows users to check shipping costs between locations in Indonesia, find nearby shipping agents, and compare rates across multiple couriers including JNE, POS, and TIKI.
+
+## Features
+
+- **Location Selection**: Search and select destination by province and city
+- **Nearby Agent Finder**: Locate nearest shipping agents based on the destination
+- **Real-time Shipping Rates**: Get up-to-date rates from multiple couriers
+- **Best Rate Recommendation**: Automatically highlight the cheapest shipping option
+- **Dynamic Origin**: Uses the shipping agent's location to calculate rates
+
+## Technology Stack
+
+- Next.js 14 (App Router)
+- React
+- TypeScript
+- Supabase (Database)
+- RajaOngkir API (Shipping rate calculation)
+- Tailwind CSS (UI styling)
+
+## How It Works
+
+1. User selects a destination city
+2. Application finds nearby shipping agents
+3. User selects a shipping agent and enters package weight
+4. Application calculates shipping rates across multiple couriers
+5. Results are displayed with the cheapest option highlighted
+
+## API Integration
+
+The application integrates with the RajaOngkir API to retrieve shipping costs. It automatically maps agent locations to the corresponding RajaOngkir city IDs to ensure accurate rate calculations.
 
 ## Getting Started
 
@@ -16,7 +47,22 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
+
+Create a `.env.local` file with the following:
+
+```
+RAJAONGKIR_API_KEY=your_rajaongkir_api_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+## Database Requirements
+
+The application requires the following Supabase tables:
+- `agen`: Stores shipping agent data
+- `regencies`: Contains city data with ID and coordinates 
+- `city_coordinates`: Maps RajaOngkir city IDs to coordinates
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
