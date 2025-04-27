@@ -183,7 +183,7 @@ export default function Home() {
             
             {showDestinationSection && (
               <div className="p-4 bg-rose-50">
-                <div className="flex items-center gap-2 mb-4">
+                {/* <div className="flex items-center gap-2 mb-4">
                   <input
                     type="checkbox"
                     id="skipVillageDest"
@@ -195,7 +195,7 @@ export default function Home() {
                   <button type="button" className="text-blue-500 bg-blue-50 rounded-full h-6 w-6 flex items-center justify-center">
                     i
                   </button>
-                </div>
+                </div> */}
                 
                 <WilayahRajaOngkirSelect onSelect={handleLocationChange} />
 
