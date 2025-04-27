@@ -1,103 +1,416 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import { ShippingAgent, ShippingCalculation } from '../models/ShippingAgent';
+import WilayahAutocomplete from '../components/WilayahAutocomplete';
+import WilayahRajaOngkirSelect from '../components/WilayahRajaOngkirSelect';
+import { ChevronDown } from 'lucide-react';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [weight, setWeight] = useState('');
+  const [nearestAgents, setNearestAgents] = useState<ShippingAgent[]>([]);
+  const [calculation, setCalculation] = useState<ShippingCalculation | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [selectedWilayah, setSelectedWilayah] = useState<any | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<ShippingAgent | null>(null);
+  const [skipVillage, setSkipVillage] = useState(false);
+  const [showAgentSection, setShowAgentSection] = useState(true);
+  const [showDestinationSection, setShowDestinationSection] = useState(true);
+  const [step, setStep] = useState<'address' | 'agent' | 'ongkir'>('address');
+  const [selectedRajaOngkirLocation, setSelectedRajaOngkirLocation] = useState<any | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const findNearestAgents = async () => {
+    if (!selectedRajaOngkirLocation || !selectedRajaOngkirLocation.city_id) {
+      alert('Pilih alamat tujuan (provinsi dan kota) terlebih dahulu');
+      return;
+    }
+    
+    setLoadingAgents(true);
+    try {
+      // Directly send coordinates to the API instead of just city_id
+      const agentsResponse = await fetch(`/api/agents?city_id=${selectedRajaOngkirLocation.city_id}&lat=${selectedRajaOngkirLocation.latitude || 0}&lng=${selectedRajaOngkirLocation.longitude || 0}`);
+      const agents = await agentsResponse.json();
+      setNearestAgents(agents);
+      setStep('agent');
+    } catch (error) {
+      console.error('Error finding nearest agents:', error);
+      alert('Gagal mencari agen terdekat. Silakan coba lagi.');
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  const handleLocationChange = (location: any) => {
+    setSelectedRajaOngkirLocation(location);
+    console.log('Selected RajaOngkir location:', location);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (!selectedAgent) {
+        alert('Pilih agen pengiriman terlebih dahulu');
+        return;
+      }
+
+      if (!selectedRajaOngkirLocation || !selectedRajaOngkirLocation.city_id) {
+        alert('Pilih kota tujuan terlebih dahulu');
+        return;
+      }
+
+      // Calculate shipping cost using RajaOngkir city IDs
+      const calculationResponse = await fetch('/api/calculate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          destination: selectedRajaOngkirLocation.city_name || '', // Use city name from RajaOngkir
+          weight: parseFloat(weight),
+          agentKode: selectedAgent.kode,
+          originCityId: "444", // This should come from your agent data or user selection
+          destinationCityId: selectedRajaOngkirLocation.city_id,
+          destinationProvince: selectedRajaOngkirLocation.province || '',
+        }),
+      });
+      const result = await calculationResponse.json();
+      console.log('RajaOngkir response:', result);
+      setCalculation(result);
+      setStep('ongkir');
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sort and transform RajaOngkir results to easily find the cheapest rate
+  const transformRajaOngkirResults = (results: any[]) => {
+    if (!results || !Array.isArray(results)) return [];
+    
+    // Create a flat array of all shipping options with their prices
+    const allOptions: Array<{
+      courier: string;
+      service: string;
+      description: string;
+      price: number;
+      etd: string;
+    }> = [];
+    
+    results.forEach(courier => {
+      if (courier.costs && Array.isArray(courier.costs)) {
+        courier.costs.forEach((cost: any) => {
+          if (cost.cost && Array.isArray(cost.cost)) {
+            cost.cost.forEach((c: any) => {
+              allOptions.push({
+                courier: courier.name,
+                service: cost.service,
+                description: cost.description,
+                price: c.value,
+                etd: c.etd
+              });
+            });
+          }
+        });
+      }
+    });
+    
+    // Sort by price (lowest first)
+    return allOptions.sort((a, b) => a.price - b.price);
+  };
+
+  // Normalize the RajaOngkir/rajaOngkir object naming inconsistency
+  const normalizeOngkirData = (calculation: any) => {
+    if (!calculation) return null;
+    
+    // If already has normalized property, use it
+    if (calculation.rajaOngkir) {
+      return calculation.rajaOngkir;
+    }
+    
+    // Check for the other case
+    if (calculation.RajaOngkir) {
+      return calculation.RajaOngkir;
+    }
+    
+    // Handle the manual calculation case
+    if (calculation.weight !== undefined && calculation.totalCost !== undefined) {
+      return null;
+    }
+    
+    // Return null if not recognized
+    return null;
+  };
+
+  return (
+    <main className="min-h-screen p-4 bg-gray-50">
+      <div className="max-w-xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8 text-center">Cek Ongkir</h1>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Step 1: Address Selection */}
+          <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+            <button 
+              type="button"
+              className="w-full p-5 text-left flex justify-between items-center"
+              onClick={() => setShowDestinationSection(!showDestinationSection)}
+            >
+              <span className="text-2xl text-gray-400">Alamat Tujuan</span>
+              <ChevronDown className={`transform transition-transform ${showDestinationSection ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {showDestinationSection && (
+              <div className="p-4 bg-rose-50">
+                <div className="flex items-center gap-2 mb-4">
+                  <input
+                    type="checkbox"
+                    id="skipVillageDest"
+                    checked={skipVillage}
+                    onChange={() => setSkipVillage(!skipVillage)}
+                    className="h-5 w-5"
+                  />
+                  <label htmlFor="skipVillageDest" className="text-xl">Tanpa Kelurahan</label>
+                  <button type="button" className="text-blue-500 bg-blue-50 rounded-full h-6 w-6 flex items-center justify-center">
+                    i
+                  </button>
+                </div>
+                
+                <WilayahRajaOngkirSelect onSelect={handleLocationChange} />
+
+                <button
+                  type="button"
+                  onClick={findNearestAgents}
+                  disabled={loadingAgents || !selectedRajaOngkirLocation?.city_id}
+                  className="w-full mt-4 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+                >
+                  {loadingAgents ? 'Mencari Agen...' : 'Cari Agen Terdekat'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Step 2: Agent Selection */}
+          {step !== 'address' && (
+            <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+              <button 
+                type="button"
+                className="w-full p-5 text-left flex justify-between items-center"
+                onClick={() => setShowAgentSection(!showAgentSection)}
+              >
+                <span className="text-2xl text-gray-400">Pilih Agen Pengiriman</span>
+                <ChevronDown className={`transform transition-transform ${showAgentSection ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showAgentSection && (
+                <div className="p-4 bg-rose-50">
+                  {nearestAgents.length > 0 ? (
+                    <div className="space-y-2">
+                      {nearestAgents.map((agent, index) => (
+                        <div 
+                          key={agent.kode} 
+                          className={`p-3 rounded border cursor-pointer ${
+                            selectedAgent?.kode === agent.kode 
+                              ? 'bg-blue-50 border-blue-500' 
+                              : index === 0 
+                                ? 'bg-green-50 border-green-500' 
+                                : 'bg-white'
+                          }`}
+                          onClick={() => setSelectedAgent(agent)}
+                        >
+                          <div className="flex items-start">
+                            <div className="flex-1">
+                              {index === 0 && (
+                                <div className="mb-1">
+                                  <span className="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full">REKOMENDASI</span>
+                                  <span className="text-xs text-green-700 ml-2">Agen Terdekat</span>
+                                </div>
+                              )}
+                              <h3 className={`font-medium ${index === 0 ? 'text-green-800' : ''}`}>{agent.nama_agen}</h3>
+                              <p className="text-gray-600">{agent.alamat_lengkap}</p>
+                              <p className="text-sm text-gray-500">
+                                {agent.kelurahan}, {agent.kecamatan}, {agent.kota}, {agent.provinsi}
+                              </p>
+                              <p className="text-sm text-gray-500">No. HP: {agent.no_hp}</p>
+                              {agent.distance && (
+                                <p className={`text-sm font-medium mt-1 ${index === 0 ? 'text-green-600' : 'text-indigo-600'}`}>
+                                  Jarak: {typeof agent.distance === 'number' ? agent.distance.toFixed(2) : '-'} km
+                                </p>
+                              )}
+                            </div>
+                            <div className={`w-6 h-6 rounded-full border-2 ${
+                              selectedAgent?.kode === agent.kode 
+                                ? 'border-blue-500' 
+                                : index === 0 
+                                  ? 'border-green-500' 
+                                  : 'border-gray-300'
+                            } flex-shrink-0 flex items-center justify-center`}>
+                              {selectedAgent?.kode === agent.kode && (
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-500 py-4">Belum ada agen terdekat. Pilih alamat tujuan terlebih dahulu.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Weight Input and Calculate */}
+          {step !== 'address' && selectedAgent && (
+            <>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    id="weight"
+                    value={weight}
+                    onChange={(e) => {
+                      // Allow only numbers and one decimal point
+                      const value = e.target.value;
+                      if (/^([0-9]*[.])?[0-9]*$/.test(value)) {
+                        setWeight(value);
+                      }
+                    }}
+                    className="w-full p-4 border rounded-lg"
+                    placeholder="Berat"
+                    required
+                  />
+                </div>
+                <div className="w-24 bg-white flex items-center justify-center border rounded-lg">
+                  <span className="text-xl">Kg</span>
+                </div>
+              </div>
+              <div className="text-gray-500 text-sm">
+                Berat {"<"}1kg gunakan titik, contoh: 400 gr = 0.4 kg
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !weight}
+                className="w-full bg-yellow-400 text-white py-5 rounded-lg text-xl hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                {loading ? 'Menghitung...' : 'Cek Ongkir'}
+              </button>
+            </>
+          )}
+        </form>
+
+        {/* Shipping Cost Results */}
+        {calculation && step === 'ongkir' && (
+          <div className="mt-8 p-4 bg-white rounded-lg border">
+            <h2 className="text-xl font-semibold mb-4">Perhitungan Ongkir</h2>
+            
+            {/* Debug Information - You can remove this in production */}
+            {/* <pre className="text-xs bg-gray-100 p-2 mb-4 overflow-auto max-h-60">
+              {JSON.stringify(calculation, null, 2)}
+            </pre> */}
+            
+            {(() => {
+              // Normalize the inconsistent property name
+              const rajaOngkirData = normalizeOngkirData(calculation);
+              
+              if (rajaOngkirData) {
+                return (
+                  <>
+                    <div className="space-y-2">
+                      <p>Asal: {rajaOngkirData.origin_details?.city_name || '-'}, {rajaOngkirData.origin_details?.province || '-'}</p>
+                      <p>Tujuan: {rajaOngkirData.destination_details?.city_name || '-'}, {rajaOngkirData.destination_details?.province || '-'}</p>
+                      <p>Berat: {rajaOngkirData.query?.weight ? rajaOngkirData.query.weight / 1000 : 0} kg</p>
+                      
+                      {/* Cheapest Option */}
+                      {rajaOngkirData.results && rajaOngkirData.results.length > 0 && (
+                        <div className="p-4 bg-green-50 border-green-500 border-2 rounded-md my-4 shadow-sm">
+                          <h3 className="font-bold text-green-800 text-lg">✅ TERMURAH</h3>
+                          {(() => {
+                            const sortedOptions = transformRajaOngkirResults(rajaOngkirData.results || []);
+                            if (sortedOptions.length > 0) {
+                              const cheapest = sortedOptions[0];
+                              return (
+                                <div className="mt-2">
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <span className="font-bold text-lg">{cheapest.courier}</span>
+                                      <span className="text-sm text-gray-600 ml-2">{cheapest.service}</span>
+                                      <p className="text-xs text-gray-500">{cheapest.description}</p>
+                                    </div>
+                                    <div className="text-xl font-bold text-green-600">
+                                      Rp {cheapest.price.toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-between items-center mt-2">
+                                    <p className="text-sm font-medium">Estimasi: {cheapest.etd} hari</p>
+                                    <button 
+                                      type="button"
+                                      className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700"
+                                      onClick={() => {
+                                        // Handle pilih tarif
+                                        alert(`Anda memilih pengiriman ${cheapest.courier} - ${cheapest.service} dengan biaya Rp ${cheapest.price.toLocaleString()}`);
+                                      }}
+                                    >
+                                      Pilih Tarif Ini
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return <p>Tidak ada opsi pengiriman tersedia</p>;
+                          })()}
+                        </div>
+                      )}
+                      
+                      <h3 className="font-semibold text-lg mt-4">Semua Opsi Pengiriman</h3>
+                      {(() => {
+                        const sortedOptions = transformRajaOngkirResults(rajaOngkirData.results || []);
+                        return (
+                          <div className="space-y-2 mt-2">
+                            {sortedOptions.map((option, index) => (
+                              <div key={index} className="p-3 bg-white rounded-md border">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <span className="font-medium">{option.courier}</span>
+                                    <span className="text-sm text-gray-600 ml-2">{option.service}</span>
+                                    <p className="text-xs text-gray-500">{option.description}</p>
+                                  </div>
+                                  <div className="text-lg font-bold">
+                                    Rp {option.price.toLocaleString()}
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-600">Estimasi: {option.etd} hari</p>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </>
+                );
+              } else {
+                // Manual calculation fallback
+                return (
+                  <div className="space-y-2">
+                    <p>Berat: {calculation.weight} kg</p>
+                    <p>Jarak: {typeof calculation.distance === 'number' ? calculation.distance.toFixed(2) : '-'} km</p>
+                    <p>Biaya Dasar: Rp {typeof calculation.baseRate === 'number' ? calculation.baseRate.toLocaleString() : '-'}</p>
+                    <p>Biaya per KM: Rp {typeof calculation.perKmRate === 'number' ? calculation.perKmRate.toLocaleString() : '-'}</p>
+                    <p>Biaya per KG: Rp {typeof calculation.perKgRate === 'number' ? calculation.perKgRate.toLocaleString() : '-'}</p>
+                    <p className="font-bold text-lg">
+                      Total Biaya: Rp {typeof calculation.totalCost === 'number' ? calculation.totalCost.toLocaleString() : '-'}
+                    </p>
+                  </div>
+                );
+              }
+            })()}
+          </div>
+        )}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
   );
 }
