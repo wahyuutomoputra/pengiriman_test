@@ -61,6 +61,25 @@ export default function Home() {
         return;
       }
 
+      // Attempt to get the RajaOngkir city ID for the agent's city
+      let originCityId = "";
+      try {
+        // Try to find the city ID by name
+        const cityResponse = await fetch(`/api/rajaongkir/city-by-name?name=${encodeURIComponent(selectedAgent.kota)}`);
+        const cityData = await cityResponse.json();
+        
+        if (cityData && cityData.city_id) {
+          originCityId = cityData.city_id;
+        } else {
+          // Fallback to default ID if city not found
+          console.warn(`City ID not found for agent's city: ${selectedAgent.kota}, using default`);
+          originCityId = "444"; // Fallback to default
+        }
+      } catch (cityError) {
+        console.error('Error getting city ID:', cityError);
+        originCityId = "444"; // Fallback to default
+      }
+
       // Calculate shipping cost using RajaOngkir city IDs
       const calculationResponse = await fetch('/api/calculate', {
         method: 'POST',
@@ -71,7 +90,7 @@ export default function Home() {
           destination: selectedRajaOngkirLocation.city_name || '', // Use city name from RajaOngkir
           weight: parseFloat(weight),
           agentKode: selectedAgent.kode,
-          originCityId: "444", // This should come from your agent data or user selection
+          originCityId: originCityId, // Now using the dynamically fetched city ID
           destinationCityId: selectedRajaOngkirLocation.city_id,
           destinationProvince: selectedRajaOngkirLocation.province || '',
         }),
